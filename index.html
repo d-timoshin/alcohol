@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Не спи, Михалыч</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#141A28; --panel:#2A3347; --ink:#F3EEE6; --muted:#C9CFDB;
+    --amber:#F2A93B; --sleep:#7FA7E8; --sick:#A6C24E;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:'Rubik',system-ui,sans-serif;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  .app{position:relative;height:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column}
+
+  .hud{padding:16px 16px 8px;display:flex;flex-direction:column;gap:10px;z-index:2}
+  .hud-top{display:flex;justify-content:space-between;align-items:baseline}
+  .route{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--amber)}
+  .timer{font-size:13px;color:var(--muted)} .timer b{color:var(--ink);font-weight:800}
+  .meter{display:flex;align-items:center;gap:10px}
+  .meter span{width:76px;font-size:13px;font-weight:600;color:var(--muted)}
+  .bar{flex:1;height:12px;border-radius:6px;background:var(--panel);overflow:hidden}
+  .fill{height:100%;width:0;border-radius:6px;transition:width .1s linear}
+  #sleepBar{background:var(--sleep)} #sickBar{background:var(--sick)}
+  .meter.alarm .fill{animation:blink .4s steps(2) infinite}
+
+  .scene{flex:1;min-height:0;width:100%;padding:0;margin:0;border:0;background:transparent;
+    cursor:pointer;touch-action:manipulation;display:block}
+  .scene:focus-visible{outline:3px solid var(--amber);outline-offset:-3px}
+  .scene svg{width:100%;height:100%;display:block}
+
+  .hint{height:64px;display:flex;align-items:center;justify-content:center;
+    font-size:16px;font-weight:600;color:var(--amber);animation:pulse 1.6s ease-in-out infinite}
+
+  .overlay{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;justify-content:flex-end;padding:20px}
+  .overlay.dim{background:rgba(12,17,28,.82)}
+  .overlay[hidden]{display:none}
+  .card{background:var(--ink);color:var(--bg);border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:12px}
+  .kicker{font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#9A3826}
+  .card h1{margin:0;font-size:34px;line-height:1.05;font-weight:800}
+  .card h2{margin:0;font-size:28px;line-height:1.1;font-weight:800}
+  .card p{margin:0;font-size:16px;line-height:1.45;color:#3B4252}
+  .stats{display:flex;gap:12px}
+  .stat{flex:1;background:#E4DDD0;border-radius:14px;padding:12px 14px}
+  .stat small{display:block;font-size:13px;color:#4A5163}
+  .stat b{font-size:24px;font-weight:800}
+  .btn{height:56px;border:0;border-radius:16px;background:var(--bg);color:var(--ink);
+    font:800 18px 'Rubik',system-ui,sans-serif;cursor:pointer}
+  #endCard{animation:rise .5s ease-out 1.2s both}
+
+  /* scene animation */
+  .lights{animation:drive 2.4s linear infinite}
+  .bus{animation:bump 3.1s ease-in-out infinite}
+  .z{opacity:0} .sleepy .z1{animation:zzz 2.2s ease-out infinite}
+  .sleepy .z2{animation:zzz 2.2s ease-out .7s infinite}
+  .sleepy .z3{animation:zzz 2.2s ease-out 1.4s infinite}
+  .vomit-only{display:none} .is-vomit .vomit-only{display:inline}
+  .is-vomit .stream{stroke-dasharray:220;animation:pour .6s ease-in forwards}
+  .is-vomit .stain{transform-box:fill-box;transform-origin:center top;animation:splat .5s ease-out .35s both}
+  .is-vomit .stain2{transform-box:fill-box;transform-origin:center top;animation:splat .6s ease-out .8s both}
+  .puff{display:none} .queasy .puff{display:inline} .queasy .smirk,.is-vomit .smirk{display:none}
+  .shake{animation:shake .5s ease-in-out}
+
+  @keyframes drive{from{transform:translateX(0)}to{transform:translateX(-260px)}}
+  @keyframes bump{0%,45%,60%,100%{transform:translateY(0)}50%{transform:translateY(3px)}55%{transform:translateY(-1px)}}
+  @keyframes zzz{0%{opacity:0;transform:translate(0,0)}30%{opacity:1}100%{opacity:0;transform:translate(18px,-40px)}}
+  @keyframes pour{from{stroke-dashoffset:220}to{stroke-dashoffset:0}}
+  @keyframes splat{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+  @keyframes rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+  @keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+  @keyframes blink{50%{opacity:.35}}
+  @keyframes shake{0%,100%{transform:none}20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <div class="hud">
+    <div class="hud-top">
+      <div class="route">Маршрут N3 · ночной</div>
+      <div class="timer">Продержался: <b id="secs">0 с</b></div>
+    </div>
+    <div class="meter" id="sleepMeter"><span>Сон</span><div class="bar"><div class="fill" id="sleepBar"></div></div></div>
+    <div class="meter" id="sickMeter"><span>Тошнота</span><div class="bar"><div class="fill" id="sickBar"></div></div></div>
+  </div>
+
+  <button class="scene" id="scene" aria-label="Растормошить пассажира">
+    <svg viewBox="0 0 390 640" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+      <defs>
+        <clipPath id="winL"><rect x="0" y="40" width="150" height="150" rx="10"/></clipPath>
+        <clipPath id="winR"><rect x="240" y="40" width="150" height="150" rx="10"/></clipPath>
+      </defs>
+      <g class="bus" id="bus">
+        <!-- салон -->
+        <rect x="-200" y="-200" width="790" height="1040" fill="#222B3D"/>
+        <rect x="-200" y="230" width="790" height="610" fill="#1C2433"/>
+
+        <!-- окна с огнями -->
+        <rect x="0" y="40" width="150" height="150" rx="10" fill="#0C111C"/>
+        <g clip-path="url(#winL)"><g class="lights">
+          <circle cx="30" cy="80" r="5" fill="#F2A93B"/><circle cx="120" cy="70" r="4" fill="#F2A93B"/>
+          <rect x="60" y="130" width="40" height="60" fill="#18202F"/><rect x="70" y="140" width="8" height="8" fill="#E6C66A"/>
+          <circle cx="200" cy="85" r="5" fill="#F2A93B"/>
+          <rect x="180" y="120" width="60" height="70" fill="#18202F"/><rect x="195" y="135" width="8" height="8" fill="#E6C66A"/><rect x="215" y="150" width="8" height="8" fill="#E6C66A"/>
+          <circle cx="290" cy="80" r="5" fill="#F2A93B"/><circle cx="380" cy="70" r="4" fill="#F2A93B"/>
+          <rect x="320" y="130" width="40" height="60" fill="#18202F"/><rect x="330" y="140" width="8" height="8" fill="#E6C66A"/>
+        </g></g>
+        <rect x="240" y="40" width="150" height="150" rx="10" fill="#0C111C"/>
+        <g clip-path="url(#winR)"><g class="lights">
+          <circle cx="260" cy="90" r="4" fill="#F2A93B"/>
+          <rect x="290" y="120" width="50" height="70" fill="#18202F"/><rect x="305" y="135" width="8" height="8" fill="#E6C66A"/>
+          <circle cx="370" cy="75" r="5" fill="#F2A93B"/><circle cx="460" cy="85" r="4" fill="#F2A93B"/>
+          <rect x="420" y="130" width="40" height="60" fill="#18202F"/><rect x="430" y="145" width="8" height="8" fill="#E6C66A"/>
+          <circle cx="520" cy="90" r="4" fill="#F2A93B"/>
+          <rect x="550" y="120" width="50" height="70" fill="#18202F"/><rect x="565" y="135" width="8" height="8" fill="#E6C66A"/>
+          <circle cx="630" cy="75" r="5" fill="#F2A93B"/>
+        </g></g>
+        <rect x="-200" y="36" width="790" height="8" fill="#2E384D"/>
+        <rect x="-200" y="188" width="790" height="10" fill="#2E384D"/>
+        <rect x="18" y="-200" width="12" height="1040" rx="6" fill="#D9A23A"/>
+        <rect x="360" y="-200" width="12" height="1040" rx="6" fill="#D9A23A"/>
+        <rect x="-200" y="12" width="790" height="10" rx="5" fill="#D9A23A"/>
+
+        <!-- сиденье -->
+        <rect x="80" y="230" width="230" height="270" rx="26" fill="#2F4C7A"/>
+        <rect x="96" y="246" width="198" height="238" rx="18" fill="#365A8F"/>
+        <path d="M96 290 H294 M96 340 H294 M96 390 H294 M96 440 H294" stroke="#2F4C7A" stroke-width="4" fill="none"/>
+        <rect x="64" y="486" width="262" height="44" rx="16" fill="#2B4570"/>
+
+        <g id="man" style="transform-origin:110px 620px">
+        <!-- ноги -->
+        <path d="M128 492 L120 560 L178 560 L186 492 Z" fill="#3A404D"/>
+        <path d="M204 492 L212 560 L270 560 L262 492 Z" fill="#3A404D"/>
+        <rect x="118" y="556" width="62" height="56" rx="8" fill="#323844"/>
+        <rect x="210" y="556" width="62" height="56" rx="8" fill="#323844"/>
+        <ellipse cx="146" cy="618" rx="40" ry="16" fill="#1A1D24"/>
+        <ellipse cx="244" cy="618" rx="40" ry="16" fill="#1A1D24"/>
+        <g class="vomit-only stain2">
+          <path d="M136 500 C150 494 168 500 172 516 C176 534 160 548 166 566 C150 572 136 560 140 544 C128 532 126 510 136 500 Z" fill="#A9A33C"/>
+          <path d="M214 504 C228 498 246 506 244 522 C242 538 252 548 240 556 C226 552 220 538 222 526 C210 520 206 510 214 504 Z" fill="#B7B04A"/>
+          <circle cx="150" cy="588" r="5" fill="#A9A33C"/><circle cx="236" cy="578" r="4" fill="#B7B04A"/>
+        </g>
+
+        <!-- корпус (наклоняется) -->
+        <g id="torso" style="transform-origin:195px 500px;transition:transform .18s ease-out">
+          <path d="M110 330 C110 300 140 286 195 286 C250 286 280 300 280 330 L292 500 L98 500 Z" fill="#4E3B2C"/>
+          <path d="M160 300 L195 330 L230 300 L240 500 L150 500 Z" fill="#CDBB9E"/>
+          <ellipse cx="195" cy="448" rx="70" ry="56" fill="#D8C7A9"/>
+          <path d="M195 330 L195 500" stroke="#B6A485" stroke-width="2" fill="none"/>
+          <circle cx="195" cy="380" r="3" fill="#8E7D61"/><circle cx="195" cy="420" r="3" fill="#8E7D61"/><circle cx="195" cy="462" r="3" fill="#8E7D61"/>
+          <g class="vomit-only stain">
+            <path d="M168 372 C186 360 214 364 222 380 C236 396 232 420 244 442 C232 462 210 470 196 486 C182 468 160 470 150 450 C160 430 150 404 168 372 Z" fill="#B7B04A"/>
+            <circle cx="178" cy="398" r="5" fill="#8F8A2E"/><circle cx="214" cy="420" r="4" fill="#C9A84A"/>
+            <circle cx="190" cy="448" r="6" fill="#8F8A2E"/><circle cx="228" cy="398" r="3" fill="#C9A84A"/>
+          </g>
+          <path d="M118 318 C96 360 100 430 128 488" stroke="#4E3B2C" stroke-width="34" stroke-linecap="round" fill="none"/>
+          <path d="M272 318 C294 360 290 430 262 488" stroke="#4E3B2C" stroke-width="34" stroke-linecap="round" fill="none"/>
+          <ellipse class="skin" cx="136" cy="496" rx="18" ry="13"/>
+          <ellipse class="skin" cx="254" cy="496" rx="18" ry="13"/>
+
+          <!-- голова -->
+          <g id="head" style="transform-origin:195px 296px;transition:transform .18s ease-out">
+            <rect class="skin" x="176" y="270" width="38" height="34" rx="10"/>
+            <ellipse class="skin" cx="143" cy="222" rx="10" ry="16"/>
+            <ellipse class="skin" cx="247" cy="222" rx="10" ry="16"/>
+            <ellipse class="skin" cx="195" cy="216" rx="52" ry="62"/>
+            <path d="M150 236 C152 280 176 280 195 280 C214 280 238 280 240 236 C230 262 160 262 150 236 Z" fill="#6B5A4E" opacity=".35"/>
+            <path d="M142 186 C142 140 170 126 195 126 C220 126 248 140 248 186 C230 176 160 176 142 186 Z" fill="#B5452F"/>
+            <rect x="140" y="176" width="110" height="18" rx="9" fill="#9A3826"/>
+            <circle cx="195" cy="124" r="11" fill="#D9A23A"/>
+            <ellipse cx="164" cy="236" rx="12" ry="7" fill="#E07A6A" opacity=".6"/>
+            <ellipse cx="226" cy="236" rx="12" ry="7" fill="#E07A6A" opacity=".6"/>
+            <path id="brows" stroke="#4A3527" stroke-width="4" stroke-linecap="round" fill="none"/>
+            <ellipse id="eyeL" cx="173" cy="216" rx="10" ry="8" fill="#F6F0E4"/>
+            <ellipse id="eyeR" cx="217" cy="216" rx="10" ry="8" fill="#F6F0E4"/>
+            <circle id="pupL" cx="174" cy="217" r="4" fill="#2A2420"/>
+            <circle id="pupR" cx="216" cy="217" r="4" fill="#2A2420"/>
+            <path id="lids" stroke="#7A4A3A" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+            <path d="M195 218 C188 236 186 244 192 246 C198 248 204 246 202 238" fill="#D9675A"/>
+            <path class="smirk" d="M180 262 Q195 268 212 258" stroke="#6E3B30" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+            <g class="puff">
+              <ellipse cx="160" cy="250" rx="14" ry="11" fill="#B9CF86"/>
+              <ellipse cx="230" cy="250" rx="14" ry="11" fill="#B9CF86"/>
+              <path d="M184 262 Q195 258 206 262" stroke="#6E3B30" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+            </g>
+            <g class="vomit-only">
+              <ellipse cx="195" cy="264" rx="15" ry="11" fill="#3A1F1A"/>
+              <path class="stream" d="M195 268 C192 300 200 320 196 350 C192 380 200 400 196 430" stroke="#B7B04A" stroke-width="18" stroke-linecap="round" fill="none"/>
+            </g>
+          </g>
+        </g>
+        </g>
+
+        <g font-family="Rubik, sans-serif" font-weight="800" fill="#9FB8E8">
+          <text class="z z1" x="262" y="150" font-size="22">z</text>
+          <text class="z z2" x="276" y="132" font-size="28">z</text>
+          <text class="z z3" x="292" y="112" font-size="34">Z</text>
+        </g>
+      </g>
+    </svg>
+  </button>
+
+  <div class="hint" id="hint"></div>
+
+  <div class="overlay dim" id="intro">
+    <div class="card">
+      <div class="kicker">Ночной рейс</div>
+      <h1>Не спи, Михалыч</h1>
+      <p>Пассажир напротив изрядно принял и клюёт носом. Тапай по нему: уснёт — свалится с сиденья. Но каждая встряска — ещё немного тошноты.</p>
+      <button class="btn" id="startBtn">Поехали</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="end" hidden>
+    <div class="card" id="endCard">
+      <h2 id="endTitle">Не донёс.</h2>
+      <div class="stats">
+        <div class="stat"><small>Продержался</small><b id="endSecs">0 с</b></div>
+        <div class="stat"><small>Растормошил</small><b id="endTaps">0 раз</b></div>
+      </div>
+      <button class="btn" id="againBtn">Ещё раз</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ===== настройки баланса =====
+  const CFG = {
+    sleepBase: 9,        // скорость засыпания в начале, %/с
+    sleepGrowth: 0.2,    // насколько каждую секунду растёт скорость засыпания
+    tapWake: 14,         // сколько сна снимает один тап
+    nauseaBase: 0.8,     // фоновая тошнота, %/с
+    nauseaPerTap: 1.8,   // тошнота за тап
+    fallDelay: 1.2,      // сколько секунд он держится «вырубленным», прежде чем свалиться
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const app = $('app'), scene = $('scene'), torso = $('torso'), head = $('head');
+  const skins = document.querySelectorAll('.skin');
+
+  let S;
+  const reset = (phase) => { S = { phase, sleep: 20, nausea: 0, t: 0, taps: 0, kick: 0, asleepT: 0, fallT: 0 }; };
+  const man = $('man');
+  reset('intro');
+
+  const mix = (a, b, k) => {
+    const p = (h) => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16));
+    const A = p(a), B = p(b);
+    return '#' + A.map((v,i) => Math.round(v + (B[i]-v)*k).toString(16).padStart(2,'0')).join('');
+  };
+
+  function vibrate(ms){ if (navigator.vibrate) try { navigator.vibrate(ms); } catch(e){} }
+
+  function tap(e){
+    if (S.phase !== 'play') return;
+    S.sleep = Math.max(0, S.sleep - CFG.tapWake);
+    S.nausea = Math.min(100, S.nausea + CFG.nauseaPerTap);
+    S.kick = 1; S.taps++;
+    vibrate(15);
+  }
+  scene.addEventListener('pointerdown', (e) => { e.preventDefault(); tap(); });
+  scene.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); tap(); } });
+
+  function start(){
+    reset('play');
+    app.classList.remove('is-vomit');
+    $('intro').hidden = true; $('end').hidden = true;
+    scene.focus({ preventScroll: true });
+  }
+  $('startBtn').addEventListener('click', start);
+  $('againBtn').addEventListener('click', start);
+
+  function vomit(){
+    S.phase = 'vomit'; S.nausea = 100; S.sleep = 0; S.kick = 1;
+    app.classList.add('is-vomit');
+    $('bus').classList.remove('shake'); void $('bus').offsetWidth; $('bus').classList.add('shake');
+    vibrate([60, 40, 200]);
+    showEnd('Не донёс.');
+  }
+
+  function showEnd(title){
+    $('endTitle').textContent = title;
+    $('endSecs').textContent = Math.floor(S.t) + ' с';
+    $('endTaps').textContent = S.taps + ' раз';
+    $('end').hidden = false;
+  }
+
+  function fall(){
+    S.phase = 'fall'; S.fallT = 0; S.landed = false;
+    showEnd('Уснул и упал.');
+  }
+
+  function land(){
+    S.landed = true;
+    $('bus').classList.remove('shake'); void $('bus').offsetWidth; $('bus').classList.add('shake');
+    vibrate([120]);
+  }
+
+  function update(dt){
+    if (S.phase === 'intro') {
+      S.t += dt; S.sleep = 30 + Math.sin(S.t * 0.8) * 20;
+    } else if (S.phase === 'play') {
+      S.t += dt;
+      S.sleep += (CFG.sleepBase + S.t * CFG.sleepGrowth) * dt;
+      S.nausea += CFG.nauseaBase * dt;
+      if (S.sleep >= 100) { S.sleep = 100; S.asleepT += dt; } else S.asleepT = 0;
+      if (S.nausea >= 100) vomit();
+      else if (S.asleepT >= CFG.fallDelay) fall();
+    } else if (S.phase === 'fall') {
+      S.fallT += dt;
+      if (!S.landed && S.fallT >= 0.55) land();
+    }
+    S.kick *= Math.pow(0.04, dt);
+  }
+
+  function render(){
+    const sl = S.sleep / 100, nz = S.nausea / 100, v = S.phase === 'vomit';
+    const sway = Math.sin(S.t * 1.3) * 2;
+    const shake = Math.sin(performance.now() / 1000 * 60) * S.kick * 7;
+    const fl = S.phase === 'fall';
+    // предупреждающее покачивание на грани, затем падение влево с сиденья
+    const wobble = S.phase === 'play' && S.asleepT > 0 ? Math.sin(S.asleepT * 14) * 3 * (S.asleepT / CFG.fallDelay) : 0;
+    const lean = v ? 8 : fl ? -32 : -sl * 30 + sway + wobble;
+    if (fl) {
+      const k = Math.min(1, S.fallT / 0.55), e = k * k; // ускорение при падении
+      const bounce = S.landed ? Math.sin(Math.min(1, (S.fallT - 0.55) / 0.3) * Math.PI) * 4 : 0;
+      man.style.transform = `translate(${(-60 * e).toFixed(1)}px, ${(70 * e - bounce).toFixed(1)}px) rotate(${(-62 * e).toFixed(2)}deg)`;
+    } else man.style.transform = '';
+    torso.style.transform = `rotate(${lean.toFixed(2)}deg)`;
+    head.style.transform = `translateY(${(v ? 36 : sl * 30).toFixed(1)}px) rotate(${(v ? 0 : -sl * 22 + shake).toFixed(2)}deg)`;
+
+    const ry = v ? 2 : Math.max(0.8, 8 * (1 - sl * 0.95));
+    $('eyeL').setAttribute('ry', ry); $('eyeR').setAttribute('ry', ry);
+    $('pupL').setAttribute('r', Math.min(4, ry)); $('pupR').setAttribute('r', Math.min(4, ry));
+    const ly = 216 - ry - 1;
+    $('lids').setAttribute('d', `M162 ${ly} Q173 ${ly-4} 184 ${ly} M206 ${ly} Q217 ${ly-4} 228 ${ly}`);
+    const b1 = v ? 186 : 194 - (1 - sl) * 6, b2 = v ? 194 : 196 - (1 - sl) * 8;
+    $('brows').setAttribute('d', `M162 ${b1} L182 ${b2} M208 ${b2} L228 ${b1}`);
+
+    const face = mix('#E8B08F', '#A9C27A', v ? 1 : nz);
+    skins.forEach(el => el.setAttribute('fill', face));
+
+    app.classList.toggle('sleepy', !v && S.sleep > 60);
+    app.classList.toggle('queasy', !v && S.nausea > 65);
+
+    $('sleepBar').style.width = S.sleep.toFixed(1) + '%';
+    $('sickBar').style.width = S.nausea.toFixed(1) + '%';
+    $('sleepMeter').classList.toggle('alarm', S.phase === 'play' && S.sleep > 80);
+    $('sickMeter').classList.toggle('alarm', S.phase === 'play' && S.nausea > 80);
+    $('secs').textContent = (S.phase === 'intro' ? 0 : Math.floor(S.t)) + ' с';
+
+    let hint = '';
+    if (S.phase === 'play') {
+      hint = S.sleep > 75 ? 'Засыпает! Тапай быстрее'
+           : S.nausea > 70 ? 'Ой, его мутит…'
+           : 'Тапай по пассажиру';
+    }
+    $('hint').textContent = hint;
+  }
+
+  let last = performance.now();
+  function loop(now){
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    update(dt); render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
