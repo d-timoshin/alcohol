@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Не спи, Михалыч</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='26' y='3' width='12' height='7' rx='2' fill='%23C9A84A'/%3E%3Cpath d='M27 9h10v12c0 3 9 7 9 15v21a4 4 0 0 1-4 4H22a4 4 0 0 1-4-4V36c0-8 9-12 9-15z' fill='%232F8F3E'/%3E%3Crect x='18' y='37' width='28' height='13' fill='%23F3EEE6'/%3E%3Crect x='22' y='41' width='20' height='5' rx='1' fill='%23B5452F'/%3E%3Cpath d='M31 13v8c0 3-6 6-7 11' stroke='%2391D18B' stroke-width='3' stroke-linecap='round' fill='none' opacity='.7'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -64,6 +65,8 @@
   .is-vomit .stain2{transform-box:fill-box;transform-origin:center top;animation:splat .6s ease-out .8s both}
   .puff{display:none} .queasy .puff{display:inline} .queasy .smirk,.is-vomit .smirk{display:none}
   .shake{animation:shake .5s ease-in-out}
+  .bubble{opacity:0;transform-box:fill-box;transform-origin:left bottom;transform:scale(.6);transition:opacity .15s,transform .15s}
+  .bubble.show{opacity:1;transform:scale(1);transition:opacity .12s,transform .25s cubic-bezier(.3,1.6,.5,1)}
 
   @keyframes drive{from{transform:translateX(0)}to{transform:translateX(-260px)}}
   @keyframes bump{0%,45%,60%,100%{transform:translateY(0)}50%{transform:translateY(3px)}55%{transform:translateY(-1px)}}
@@ -195,6 +198,12 @@
         </g>
         </g>
 
+        <g id="bubble" class="bubble" aria-hidden="true">
+          <path id="bubbleTail" fill="#F3EEE6"/>
+          <rect id="bubbleBg" rx="14" fill="#F3EEE6"/>
+          <text id="bubbleText" x="372" y="82" text-anchor="end" font-family="Rubik, sans-serif" font-weight="600" font-size="16" fill="#141A28"></text>
+        </g>
+
         <g font-family="Rubik, sans-serif" font-weight="800" fill="#9FB8E8">
           <text class="z z1" x="262" y="150" font-size="22">z</text>
           <text class="z z2" x="276" y="132" font-size="28">z</text>
@@ -262,6 +271,43 @@
     S.nausea = Math.min(100, S.nausea + CFG.nauseaPerTap);
     S.kick = 1; S.taps++;
     vibrate(15);
+    maybeSay();
+  }
+
+  // ===== фразы при раскачивании =====
+  const PHRASES = ['Серёг, ты женат?', 'Переоценено..', 'Хоть ты выебись!', 'Я не Михалыч я Иваныч'];
+  const bubble = $('bubble'), bubbleText = $('bubbleText');
+  let bag = [], sayTimer = 0, tapsSinceSay = 0, lastPhrase = '';
+
+  function nextPhrase(){
+    if (!bag.length) {
+      bag = PHRASES.slice().sort(() => Math.random() - 0.5);
+      if (bag[0] === lastPhrase) bag.push(bag.shift());
+    }
+    return lastPhrase = bag.shift();
+  }
+
+  function say(text){
+    bubbleText.textContent = text;
+    const b = bubbleText.getBBox(), px = 14, py = 10;
+    const x = b.x - px, y = b.y - py, w = b.width + px * 2, h = b.height + py * 2;
+    const bg = $('bubbleBg');
+    bg.setAttribute('x', x); bg.setAttribute('y', y);
+    bg.setAttribute('width', w); bg.setAttribute('height', h);
+    // хвостик к голове
+    const tx = Math.max(x + 18, 250);
+    $('bubbleTail').setAttribute('d', `M${tx} ${y + h - 2} L${tx + 22} ${y + h - 2} L${tx - 12} ${y + h + 26} Z`);
+    bubble.classList.add('show');
+    clearTimeout(sayTimer);
+    sayTimer = setTimeout(hideBubble, 1900);
+    tapsSinceSay = 0;
+  }
+  function hideBubble(){ clearTimeout(sayTimer); bubble.classList.remove('show'); }
+
+  function maybeSay(){
+    tapsSinceSay++;
+    if (bubble.classList.contains('show')) return;
+    if (tapsSinceSay >= 4 || Math.random() < 0.3) say(nextPhrase());
   }
   scene.addEventListener('pointerdown', (e) => { e.preventDefault(); tap(); });
   scene.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); tap(); } });
@@ -284,6 +330,7 @@
   }
 
   function showEnd(title){
+    hideBubble();
     $('endTitle').textContent = title;
     $('endSecs').textContent = Math.floor(S.t) + ' с';
     $('endTaps').textContent = S.taps + ' раз';
